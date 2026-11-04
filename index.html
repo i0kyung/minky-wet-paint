@@ -1,0 +1,549 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MINKY Wet Paint</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Gasoek+One&family=Jua&family=Black+Han+Sans&family=Gothic+A1:wght@300;400;600;800&display=swap">
+<style>
+/* Layout: one square album-sleeve poster that is a wet WebGL paint surface, with a slim mixing tray beside it (below it on phones) */
+:root{
+  --ground:#0c0a33; --tray:#14114a; --rule:rgba(238,236,255,.22); --ink:#f4f2ff; --mute:#a9a5dc;
+  --pink:#ff2b97; --cobalt:#2a4dff; --cyan:#27d3ff; --silver:#dfe3f5;
+  --f-fat:"Bagel Fat One","Jua","Apple SD Gothic Neo",system-ui,sans-serif;
+  --f-ui:"Gothic A1","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --deck:340px; --gap:24px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.stage{--side:min(calc(100dvh - 32px),calc(100vw - var(--deck) - var(--gap) - 32px));
+  display:grid;grid-template-columns:var(--side) var(--deck);gap:var(--gap);justify-content:center;align-items:start}
+.poster{position:relative;width:100%;aspect-ratio:1;max-width:100%;background:#17125a;overflow:hidden;touch-action:none;cursor:crosshair}
+.poster.moving{cursor:move}
+.poster canvas{display:block;width:100%;height:100%}
+.nogl{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+
+.deck{display:flex;flex-direction:column;gap:18px;max-height:var(--side);overflow-y:auto;padding-right:4px;scrollbar-width:thin}
+.head{display:flex;flex-direction:column;gap:4px}
+h1{margin:0;font-family:var(--f-fat);font-weight:400;font-size:30px;line-height:1.1;color:var(--pink);text-wrap:balance}
+.head p{margin:0;color:var(--mute);max-width:40ch}
+.grp{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lab{font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--mute);display:flex;justify-content:space-between;gap:8px}
+.lab output{font-variant-numeric:tabular-nums;color:var(--ink);letter-spacing:0;font-weight:400}
+textarea{width:100%;min-height:84px;resize:vertical;background:var(--tray);color:var(--ink);border:1px solid var(--rule);border-radius:16px;
+  padding:12px 14px;font-family:var(--f-fat);font-size:24px;line-height:1.2}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;color:inherit;cursor:pointer}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--rule);background:transparent;font-size:13px;line-height:1.3}
+.chip:hover{border-color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground);font-weight:600}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:8px 4px;font-size:13px;min-width:0}
+.seg button[aria-pressed="true"]{background:var(--pink);color:#fff;font-weight:800}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sw{display:flex;gap:8px}
+.sw button{width:34px;height:34px;border-radius:50%;border:0;padding:0;background:var(--c);position:relative;
+  box-shadow:inset -3px -5px 8px rgba(10,0,50,.45),inset 3px 4px 6px rgba(255,255,255,.55)}
+.sw button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
+.sw [data-p="3"]{background:conic-gradient(from 200deg,#fff,#7f8fff,#26143f,#d7f6ff,#ff8fd0,#fff)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule)}
+input[type=range]::-moz-range-track{height:2px;background:var(--rule)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-9px;border-radius:50%;border:0;background:var(--pink);
+  box-shadow:inset -2px -3px 5px rgba(90,0,70,.5),inset 2px 2px 4px rgba(255,255,255,.7)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;border:0;background:var(--pink)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.act{flex:1 1 120px;padding:11px 14px;border-radius:999px;border:1px solid var(--ink);background:transparent;font-weight:600}
+.act.main{background:var(--pink);border-color:var(--pink);color:#fff}
+.act:hover{filter:brightness(1.12)}
+.foot{font-size:12px;color:var(--mute);margin:0;min-height:18px}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+@media (max-width:860px){
+  .stage{grid-template-columns:minmax(0,1fr);--side:100%}
+  .deck{max-height:none;overflow:visible;padding-right:0}
+}
+</style>
+
+<main class="stage">
+  <div class="poster" id="poster">
+    <canvas id="c" width="1024" height="1024" role="img" aria-label="입력한 글자가 젖은 물감으로 그려진 포스터. 문지르면 물감이 번집니다."></canvas>
+    <p class="nogl" id="nogl" hidden>이 브라우저에서는 WebGL2를 쓸 수 없어 물감이 흐르지 않아요. 최신 Chrome, Edge, Safari에서 열어 주세요.</p>
+  </div>
+
+  <aside class="deck" aria-label="물감 조절">
+    <div class="head">
+      <h1>MINKY 물감 글자</h1>
+      <p>쓴 글자가 젖은 물감이 됩니다. 포스터를 문지르면 번져요.</p>
+    </div>
+
+    <div class="grp">
+      <label class="lab" for="txt">글자 (Enter로 줄바꿈)</label>
+      <textarea id="txt" maxlength="60" rows="2" spellcheck="false">MINKY</textarea>
+      <div class="row" id="presets"></div>
+    </div>
+
+    <div class="grp">
+      <span class="lab">글씨체</span>
+      <div class="row" id="fonts"></div>
+    </div>
+
+    <div class="grp">
+      <span class="lab">손으로 할 일</span>
+      <div class="seg" id="tools">
+        <button id="t-stir" data-t="stir" aria-pressed="true">휘젓기</button>
+        <button id="t-squeeze" data-t="squeeze" aria-pressed="false">짜서 쓰기</button>
+        <button id="t-move" data-t="move" aria-pressed="false">글자 옮기기</button>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="grp"><span class="lab">글자 물감</span><div class="sw" id="swText"></div></div>
+      <div class="grp"><span class="lab">손 물감</span><div class="sw" id="swHand"></div></div>
+    </div>
+
+    <div class="grp">
+      <label class="lab" for="size">크기 <output id="oSize">100%</output></label>
+      <input id="size" type="range" min="50" max="150" value="100">
+      <label class="lab" for="tilt">기울기 <output id="oTilt">0°</output></label>
+      <input id="tilt" type="range" min="-25" max="25" value="-4">
+      <label class="lab" for="goo">꿀렁임 <output id="oGoo">55%</output></label>
+      <input id="goo" type="range" min="0" max="100" value="55">
+    </div>
+
+    <div class="grp">
+      <span class="lab">물감 성질</span>
+      <div class="row">
+        <button class="chip" id="o-ret" aria-pressed="true">글자로 돌아오기</button>
+        <button class="chip" id="o-drip" aria-pressed="false">흘러내리기</button>
+      </div>
+    </div>
+
+    <div class="acts">
+      <button class="act" id="reset">새 물감으로</button>
+      <button class="act main" id="save" hidden>포스터 PNG 저장</button>
+    </div>
+    <p class="foot" id="foot" role="status"></p>
+  </aside>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FONTS = [['말랑','Bagel Fat One'],['묵직','Gasoek One'],['둥글','Jua'],['각진','Black Han Sans']];
+const PRESETS = ['MINKY','물감','WET\nPAINT','말랑말랑'];
+const PIGS = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+const PIGNAME = ['핫핑크','코발트','시안','크롬'];
+const PIGCSS = ['var(--pink)','var(--cobalt)','var(--cyan)','var(--silver)'];
+
+const S = {text:'MINKY',font:0,size:1,tilt:-4,goo:.55,ox:0,oy:0,gs:1,textPig:1,handPig:0,tool:'stir',
+  ret:true,drip:false,pour:0,snap:true,dirty:true,lastTouch:-1e9};
+
+const canvas = $('c'), poster = $('poster');
+const gl = canvas.getContext('webgl2',{alpha:false,antialias:false,powerPreference:'high-performance'});
+const okFloat = gl && (gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float'));
+if(!gl || !okFloat){ $('nogl').hidden=false; canvas.hidden=true; return; }
+
+const small = Math.min(innerWidth,innerHeight) < 700;
+const PR = small ? 768 : 1024, SR = small ? 176 : 256, BG = 640;
+let JAC = 16, renderScale = 1;
+
+/* ---------- shaders ---------- */
+const VS = `#version 300 es
+in vec2 p; out vec2 uv; void main(){uv=p*.5+.5;gl_Position=vec4(p,0.,1.);}`;
+const H = `#version 300 es
+precision highp float; precision highp sampler2D; in vec2 uv; out vec4 o;
+float seg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-9),0.,1.);return length(pa-ba*h);}
+float sum4(vec4 v){return v.x+v.y+v.z+v.w;}
+`;
+const FS = {
+splatV:`uniform sampler2D B;uniform vec2 a,b,f;uniform float r;
+void main(){o=texture(B,uv);float d=seg(uv,a,b);o.xy+=f*exp(-d*d/(r*r));}`,
+
+splatP:`uniform sampler2D B;uniform vec2 a,b;uniform float r,amt,mode;uniform vec4 pig;
+void main(){vec4 w=texture(B,uv);float d=seg(uv,a,b);float s=sum4(w);
+ if(mode<.5){float g=1.-smoothstep(r*.7,r,d);w=mix(w,pig*max(amt,s),g);}
+ else{float g=exp(-d*d/(r*r))*amt;w=mix(w,pig*s,g);}
+ o=w;}`,
+
+advV:`uniform sampler2D V;uniform float dt,diss;
+void main(){vec2 v=texture(V,uv).xy;o=vec4(texture(V,uv-dt*v).xy*diss,0.,1.);}`,
+
+div:`uniform sampler2D V;uniform vec2 t;
+void main(){float l=texture(V,uv-vec2(t.x,0.)).x,r=texture(V,uv+vec2(t.x,0.)).x,b=texture(V,uv-vec2(0.,t.y)).y,u=texture(V,uv+vec2(0.,t.y)).y;
+ o=vec4(.5*(r-l+u-b),0.,0.,1.);}`,
+
+jac:`uniform sampler2D Pr,D;uniform vec2 t;
+void main(){float l=texture(Pr,uv-vec2(t.x,0.)).x,r=texture(Pr,uv+vec2(t.x,0.)).x,b=texture(Pr,uv-vec2(0.,t.y)).x,u=texture(Pr,uv+vec2(0.,t.y)).x;
+ o=vec4((l+r+b+u-texture(D,uv).x)*.25,0.,0.,1.);}`,
+
+grad:`uniform sampler2D Pr,V;uniform vec2 t;
+void main(){float l=texture(Pr,uv-vec2(t.x,0.)).x,r=texture(Pr,uv+vec2(t.x,0.)).x,b=texture(Pr,uv-vec2(0.,t.y)).x,u=texture(Pr,uv+vec2(0.,t.y)).x;
+ o=vec4(texture(V,uv).xy-.5*vec2(r-l,u-b),0.,1.);}`,
+
+/* paint: advect + surface tension (keeps edges beaded) + relax toward the written letters */
+paint:`uniform sampler2D P,V,T,St;uniform float dt,ten,rel,drip,time;uniform vec2 t;
+float h1(float x){return fract(sin(x*127.1)*43758.5453);}
+float col(float x){float i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(h1(i),h1(i+1.),f);}
+void main(){
+ vec2 v=texture(V,uv).xy;
+ float c=col(uv.x*46.)*.6+col(uv.x*17.+3.)*.4; c=smoothstep(.5,.78,c);
+ vec2 q=uv-dt*(v+vec2(0.,-drip*c));
+ vec4 w=texture(P,q);
+ vec4 lap=texture(P,q+vec2(t.x,0.))+texture(P,q-vec2(t.x,0.))+texture(P,q+vec2(0.,t.y))+texture(P,q-vec2(0.,t.y))-4.*w;
+ w+=.05*lap;
+ float a=sum4(w),ac=clamp(a,0.,1.);
+ float an=a+dt*ten*ac*(1.-ac)*(ac-.5)-dt*.9*max(a-1.15,0.);
+ w*=max(an,0.)/max(a,1e-4);
+ vec4 s=texture(St,uv);float sa=min(1.,sum4(s));
+ vec4 tg=texture(T,uv)*(1.-sa)+s;
+ w=mix(w,tg,1.-exp(-rel*dt));
+ o=max(w,0.);}`,
+
+/* text mask -> liquid letterforms: domain warp, gooey blur, flow-traced tendrils */
+target:`uniform sampler2D M;uniform float gooIn,gs;uniform vec4 pig;
+vec2 flow(vec2 p){return vec2(cos(p.y*5.+sin(p.x*4.)*1.4)*.55+.12,sin(p.x*7.6+1.7+cos(p.y*3.)*1.2)*1.25);}
+void main(){
+ float goo=gooIn*gs;
+ vec2 p=uv+goo*.016*vec2(sin(uv.y*9.+sin(uv.x*5.)*1.4),cos(uv.x*8.+1.+sin(uv.y*4.)));
+ float r=.002+.0042*goo,m=texture(M,p).r*2.,n=2.;
+ for(int i=0;i<12;i++){float an=float(i)*.5236;m+=texture(M,p+r*vec2(cos(an),sin(an))).r;n+=1.;}
+ m/=n;
+ float tail=0.;vec2 q=p,q2=p;
+ for(int i=1;i<=30;i++){float k=1.-float(i)/31.;
+  q-=flow(q)*goo*.0026;q2+=flow(q2)*goo*.0026;
+  float lod=1.2+1.2*gs;
+  tail=max(tail,max(textureLod(M,q,lod).r,textureLod(M,q2,lod).r)*k*1.02);}
+ tail*=1.-smoothstep(.22,.5,textureLod(M,p,4.6).r);
+ float a=smoothstep(.44,.56,max(m,tail));
+ o=pig*a;}`,
+
+blur0:`uniform sampler2D B;uniform vec2 d;
+void main(){float s=0.;float w[5]=float[](.227,.195,.122,.054,.016);
+ s=sum4(texture(B,uv))*w[0];
+ for(int i=1;i<5;i++){vec2 k=d*float(i);s+=(sum4(texture(B,uv+k))+sum4(texture(B,uv-k)))*w[i];}
+ o=vec4(min(s,1.4),0.,0.,1.);}`,
+blur:`uniform sampler2D B;uniform vec2 d;
+void main(){float s=0.;float w[5]=float[](.227,.195,.122,.054,.016);
+ s=texture(B,uv).x*w[0];
+ for(int i=1;i<5;i++){vec2 k=d*float(i);s+=(texture(B,uv+k).x+texture(B,uv-k).x)*w[i];}
+ o=vec4(s,0.,0.,1.);}`,
+
+/* iridescent liquid foil */
+bg:`uniform sampler2D V;uniform float time;
+float F(vec2 p,float t){
+ p+=.42*vec2(sin(p.y*1.9+t*.21),cos(p.x*1.6-t*.17));
+ p+=.55*vec2(sin(p.y*3.1+1.+t*.13+p.x*.8),cos(p.x*2.7+2.-t*.11+p.y*.6));
+ return sin(p.x*2.2-p.y*3.6+sin(p.y*2.4+p.x*1.3)*1.7);}
+vec3 pal(float x){
+ vec3 c=vec3(.075,.06,.34);
+ c=mix(c,vec3(.09,.13,.58),smoothstep(.22,.42,x));
+ c=mix(c,vec3(.30,.12,.56),smoothstep(.46,.58,x));
+ c=mix(c,vec3(.09,.38,.95),smoothstep(.62,.72,x));
+ c=mix(c,vec3(.92,.13,.60),smoothstep(.80,.89,x));
+ c=mix(c,vec3(1.,.72,.86),smoothstep(.96,1.,x));
+ return c;}
+void main(){
+ vec2 v=texture(V,uv).xy;
+ vec2 p=(uv-.5)*vec2(3.3,3.3)+v*.22;float e=.012;
+ float f=F(p,time),fx=F(p+vec2(e,0.),time),fy=F(p+vec2(0.,e),time);
+ vec3 n=normalize(vec3((f-fx)/e*.28,(f-fy)/e*.28,1.));
+ float ph=.44+.30*f+.24*n.x-.2*n.y;
+ vec3 c=pal(clamp(ph,0.,1.));
+ float sp=pow(max(dot(n,normalize(vec3(-.45,.55,.7))),0.),26.);
+ c+=vec3(.55,.42,.75)*sp*.55;
+ c+=vec3(.1,.55,.7)*pow(max(dot(n,normalize(vec3(.6,-.3,.65))),0.),30.)*.5;
+ o=vec4(c,1.);}`,
+
+final:`uniform sampler2D P,H1,H2,Bg,Ov,V;uniform vec2 t;uniform float time,hs;
+float hgt(vec2 u){float a=texture(H1,u).x,b=texture(H2,u).x;
+ return .34*sqrt(max(b,0.))+.10*smoothstep(.15,1.,a)+.02*a;}
+float star(vec2 p,vec2 c,float r){vec2 d=abs(p-c)/r;float s=sqrt(d.x)+sqrt(d.y);return 1.-smoothstep(.92,1.02,s);}
+float glint(vec2 p,vec2 c,float r){vec2 d=abs(p-c);return r*.0011/(d.x*d.y/r+r*.0045+d.x*d.x*.9+d.y*d.y*.9)*.05;}
+float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+ vec2 v=texture(V,uv).xy;
+ vec3 bg=texture(Bg,uv).rgb;
+ /* halftone screen over the foil */
+ vec2 hp=mat2(.7071,-.7071,.7071,.7071)*uv*hs;
+ float dd=length(fract(hp)-.5);
+ float lum=dot(bg,vec3(.3,.5,.2));
+ bg*=1.-.26*(1.-smoothstep(.0,.03,dd-(.40-lum*.45)));
+ /* soft cast shadow, then printed line work under the paint */
+ float sh=texture(H2,uv+vec2(-.006,.014)).x;
+ bg*=1.-.55*smoothstep(.02,.75,sh);
+ vec4 ov=texture(Ov,uv+v*.006);
+ vec3 col=ov.rgb+bg*(1.-ov.a);
+
+ vec4 w=texture(P,uv);float A=sum4(w);
+ float a1=texture(H1,uv).x;
+ float mask=smoothstep(.43,.55,mix(A,a1,.08));
+ if(mask>.002){
+  float e=t.x*2.5;
+  float gx=hgt(uv+vec2(e,0.))-hgt(uv-vec2(e,0.)),gy=hgt(uv+vec2(0.,e))-hgt(uv-vec2(0.,e));
+  vec4 pw=w/max(A,1e-3);pw=pow(pw,vec4(2.4));pw/=max(sum4(pw),1e-3);
+  /* pigment boundaries ridge up like squeezed paint */
+  vec3 N=normalize(vec3(-gx/e*.42,-gy/e*.42,1.));
+  vec3 R=reflect(vec3(0.,0.,-1.),N);
+  vec3 L=normalize(vec3(-.42,.62,.66));
+  float nl=dot(N,L);
+  float s1=pow(max(dot(R,L),0.),70.),s0=pow(max(dot(R,L),0.),9.);
+  float s2=pow(max(dot(R,normalize(vec3(.5,.45,.74))),0.),160.);
+  float fr=pow(1.-max(N.z,0.),2.6);
+  vec3 base=pw.x*vec3(1.,.10,.55)+pw.y*vec3(.09,.17,1.)+pw.z*vec3(.06,.80,1.);
+  vec3 deep=pw.x*vec3(.72,.0,.50)+pw.y*vec3(.05,.03,.55)+pw.z*vec3(.0,.28,.72);
+  vec3 lit=pw.x*vec3(1.,.48,.80)+pw.y*vec3(.42,.55,1.)+pw.z*vec3(.62,.97,1.);
+  float dif=clamp(.5+.62*nl,0.,1.);
+  vec3 paint=mix(deep,base,smoothstep(.12,.62,dif));
+  paint=mix(paint,lit,smoothstep(.70,1.,dif)*.8);
+  vec3 env=texture(Bg,clamp(.5+R.xy*.48+(uv-.5)*.3,0.,1.)).rgb;
+  paint+=env*fr*.8;
+  paint+=vec3(1.,.82,.93)*s0*.20*(1.-pw.w);
+  paint+=vec3(1.)*(s1*1.25+s2*.8);
+  /* liquid chrome pigment mirrors the foil */
+  vec3 ce=texture(Bg,clamp(.5+R.xy*.62+(uv-.5)*.12,0.,1.)).rgb;
+  float band=.5+.5*sin(R.y*8.+R.x*5.+(uv.x-uv.y*.6)*17.+ce.b*3.);
+  vec3 chrome=mix(ce*1.1,vec3(.86,.97,1.),pow(band,9.)*.95);
+  chrome=mix(chrome,vec3(.03,.03,.22),pow(1.-band,3.)*.75);
+  chrome=mix(chrome,vec3(.25,.85,1.),smoothstep(.1,.9,R.x*.8+.3)*.32);
+  chrome=mix(chrome,vec3(.95,.25,.85),smoothstep(.2,.9,-R.y*.9)*.3);
+  chrome+=vec3(1.)*(s1*1.5+s2);
+  col=mix(col,mix(paint,chrome,pw.w),mask);
+ }
+
+ float tw=time*1.1;
+ float st=0.;
+ st=max(st,star(uv,vec2(.123,.755),.074*(.92+.08*sin(tw))));
+ st=max(st,star(uv,vec2(.5,.872),.024));
+ st=max(st,star(uv,vec2(.048,.435),.017));
+ st=max(st,star(uv,vec2(.952,.435),.017));
+ st=max(st,star(uv,vec2(.5,.165),.018));
+ st=max(st,star(uv,vec2(.5,.083),.05));
+ col=mix(col,vec3(1.),st);
+ float gi=glint(uv,vec2(.232,.51),.3*(.8+.2*sin(tw*1.3)))+glint(uv,vec2(.865,.785),.26*(.8+.2*sin(tw*.9+2.)))+glint(uv,vec2(.6,.6),.2*(.8+.2*sin(tw*1.7+1.)));
+ col+=vec3(1.,.93,.97)*min(gi,1.2);
+ col+=(hash(uv*911.+fract(time))-.5)*.035;
+ o=vec4(col,1.);}`
+};
+
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s}
+const vs=sh(gl.VERTEX_SHADER,VS);
+function prog(src){const h=gl.createProgram();gl.attachShader(h,vs);gl.attachShader(h,sh(gl.FRAGMENT_SHADER,H+src));
+  gl.bindAttribLocation(h,0,'p');gl.linkProgram(h);
+  if(!gl.getProgramParameter(h,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(h));
+  const u={},n=gl.getProgramParameter(h,gl.ACTIVE_UNIFORMS);
+  for(let i=0;i<n;i++){const nm=gl.getActiveUniform(h,i).name;u[nm]=gl.getUniformLocation(h,nm)}
+  return {h,u}}
+const PG={};for(const k in FS)PG[k]=prog(FS[k]);
+
+const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+
+function fbo(w,h,fmt){const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+  for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+  if(fmt==='8')gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);
+  const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  return {tex,f,w,h}}
+function dbl(w,h){let a=fbo(w,h),b=fbo(w,h);return {get r(){return a},get w(){return b},swap(){[a,b]=[b,a]}}}
+function clearF(x){gl.bindFramebuffer(gl.FRAMEBUFFER,x.f);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT)}
+
+const vel=dbl(SR,SR),prs=dbl(SR,SR),dvg=fbo(SR,SR),paint=dbl(PR,PR),strokes=dbl(PR,PR),target=fbo(PR,PR);
+const hA=fbo(PR/2,PR/2),hB=fbo(PR/2,PR/2),qA=fbo(PR/4,PR/4),qB=fbo(PR/4,PR/4),bgT=fbo(BG,BG,'8');
+
+function imgTex(mip){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t}
+function upload(t,cv,mip){gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);if(mip)gl.generateMipmap(gl.TEXTURE_2D);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false)}
+const maskT=imgTex(true),ovT=imgTex(false);
+
+function run(p,dst,u){gl.useProgram(p.h);let unit=0;
+  for(const k in u){const l=p.u[k];if(l==null)continue;const v=u[k];
+    if(typeof v==='number')gl.uniform1f(l,v);
+    else if(v instanceof WebGLTexture){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,v);gl.uniform1i(l,unit++)}
+    else if(v.tex){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,v.tex);gl.uniform1i(l,unit++)}
+    else if(v.length===2)gl.uniform2f(l,v[0],v[1]);
+    else gl.uniform4f(l,v[0],v[1],v[2],v[3])}
+  if(dst){gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);gl.viewport(0,0,dst.w,dst.h)}
+  else{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,canvas.width,canvas.height)}
+  gl.drawArrays(gl.TRIANGLES,0,3)}
+
+/* ---------- letters ---------- */
+const mask=document.createElement('canvas');mask.width=mask.height=PR;
+const mc=mask.getContext('2d',{willReadFrequently:false});
+function drawMask(){
+  const N=PR,fam=FONTS[S.font][1],lines=(S.text.trim()?S.text:' ').split('\n').map(l=>l.trim()).filter((l,i,a)=>l||a.length===1);
+  mc.setTransform(1,0,0,1,0,0);mc.fillStyle='#000';mc.fillRect(0,0,N,N);
+  const base=200;if('letterSpacing' in mc)mc.letterSpacing=(base*.035)+'px';mc.font=`${base}px "${fam}","Bagel Fat One",sans-serif`;
+  const maxW=Math.max(1,...lines.map(l=>mc.measureText(l).width));
+  const boxW=.84*N,boxH=.60*N,lh=1.02;
+  const fs=base*Math.min(boxW/maxW,boxH/(lines.length*base*lh))*S.size;
+  const cy=.47;
+  mc.translate(N*(.5+S.ox),N*(cy+S.oy));mc.rotate(S.tilt*Math.PI/180);
+  mc.font=`${fs}px "${fam}","Bagel Fat One",sans-serif`;mc.textAlign='center';mc.textBaseline='middle';mc.fillStyle='#fff';if('letterSpacing' in mc)mc.letterSpacing=(fs*.035).toFixed(1)+'px';
+  lines.forEach((l,i)=>mc.fillText(l,0,(i-(lines.length-1)/2)*fs*lh));
+  /* dense or small glyphs get less goo, so counters stay open */
+  const hangul=/[ㄱ-ㆎ가-힣]/.test(S.text);S.gs=Math.max(.25,Math.min(1,fs/(N*.3)))*(hangul?.5:1);
+  upload(maskT,mask,true);
+}
+function buildTarget(){drawMask();
+  run(PG.target,target,{M:maskT,gooIn:S.goo,gs:S.gs,pig:PIGS[S.textPig]})}
+function refresh(pour=4){S.dirty=true;S.pour=Math.max(S.pour,pour);S.lastTouch=-1e9}
+
+function stroke(dst,a,b,r,amt,pig,mode=0){run(PG.splatP,dst.w,{B:dst.r,a,b,r,amt,pig,mode});dst.swap()}
+
+/* ---------- print layer: rules, marks and barcode under the paint ---------- */
+const OV=2048,ov=document.createElement('canvas');ov.width=ov.height=OV;const oc=ov.getContext('2d');
+function spaced(s,x,y,w){const ws=s.split(' ');if(ws.length<2){const cs=[...s];cs.forEach((c,i)=>oc.fillText(c,x+w*i/(cs.length-1||1),y));return}
+  const tot=ws.reduce((a,b)=>a+oc.measureText(b).width,0),gap=(w-tot)/(ws.length-1);let cx=x;for(const k of ws){oc.fillText(k,cx,y);cx+=oc.measureText(k).width+gap}}
+function drawOverlay(){
+  const c=oc;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,OV,OV);c.scale(2,2);
+  c.strokeStyle=c.fillStyle='#fff';c.lineWidth=1.6;c.textBaseline='alphabetic';c.textAlign='left';
+  c.beginPath();c.moveTo(32,67);c.lineTo(415,67);c.moveTo(610,67);c.lineTo(992,67);c.stroke();
+  c.lineWidth=2.4;const gx=512,gy=67;
+  for(const [rx,ry] of [[66,34],[30,34],[66,14]]){c.beginPath();c.ellipse(gx,gy,rx,ry,0,0,7);c.stroke()}
+  c.beginPath();c.moveTo(gx-66,gy);c.lineTo(gx+66,gy);c.moveTo(gx,gy-34);c.lineTo(gx,gy+34);c.stroke();
+  c.font='800 25px "Gothic A1",sans-serif';c.fillText('물감',32,102);
+  c.font='300 27px "Gothic A1",sans-serif';spaced('MINKY',760,102,232);
+  c.textAlign='right';c.font='800 30px "Gothic A1",sans-serif';c.fillText('WET',992,142);
+  c.font='800 13px "Gothic A1",sans-serif';c.fillText('PLEASE TOUCH',992,160);c.textAlign='left';
+  /* paint drop badge */
+  c.save();c.translate(930,492);c.lineWidth=4;
+  const drop=s=>{c.beginPath();c.moveTo(0,-60*s);c.bezierCurveTo(14*s,-30*s,54*s,-4*s,54*s,26*s);c.arc(0,26*s,54*s,0,Math.PI);c.bezierCurveTo(-54*s,-4*s,-14*s,-30*s,0,-60*s);c.closePath()};
+  drop(1);c.stroke();drop(.72);c.fill();c.restore();
+  /* bottom pill */
+  c.lineWidth=2;c.beginPath();c.roundRect(32,888,960,108,54);c.stroke();
+  for(const [x,y,r] of [[72,942,17],[98,916,13],[98,968,13]]){c.beginPath();c.arc(x,y,r,0,7);c.fill()}
+  c.lineWidth=7;c.beginPath();c.moveTo(72,942);c.lineTo(98,916);c.moveTo(72,942);c.lineTo(98,968);c.stroke();
+  c.font='400 12.5px "Gothic A1",sans-serif';
+  ['THE PAINT STAYS WET','FOR AS LONG AS','YOU KEEP YOUR HAND','IN IT'].forEach((s,i)=>spaced(s,134,911+i*13.5,272));
+  ['TYPE IT','POUR IT','PUSH IT AROUND','LET IT RUN'].forEach((s,i)=>spaced(s,620,911+i*13.5,240));
+  /* barcode generated from the typed letters */
+  let h=7;const bits=[];for(const ch of S.text+'minky'){h=(h*31+ch.codePointAt(0))>>>0;bits.push(h)}
+  let x=134,i=0;while(x<404){const v=bits[i%bits.length]>>>(i%13);const w=1+(v&3)*1.3,g=1+((v>>2)&3)*1.1;c.fillRect(x,960,Math.min(w,406-x),24);x+=w+g;i++}
+  upload(ovT,ov,false);
+}
+
+/* ---------- pointer ---------- */
+const ptrs=new Map();let segs=[];
+function toUV(e){const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,1-(e.clientY-r.top)/r.height]}
+poster.addEventListener('pointerdown',e=>{if(e.button>0)return;poster.setPointerCapture?.(e.pointerId);
+  const p=toUV(e);ptrs.set(e.pointerId,{p,down:true});S.lastTouch=performance.now();
+  if(S.tool!=='move')segs.push({a:p,b:[p[0]+.0005,p[1]],down:true});e.preventDefault()});
+poster.addEventListener('pointermove',e=>{
+  const list=e.getCoalescedEvents?.()||[e];let st=ptrs.get(e.pointerId);
+  if(!st){if(e.pointerType!=='mouse')return;st={p:toUV(e),down:false};ptrs.set(e.pointerId,st)}
+  for(const ev of (list.length?list:[e])){const q=toUV(ev);
+    if(S.tool==='move'&&st.down){S.ox+=q[0]-st.p[0];S.oy-=q[1]-st.p[1];S.ox=Math.max(-.6,Math.min(.6,S.ox));S.oy=Math.max(-.5,Math.min(.6,S.oy));refresh(9)}
+    else segs.push({a:st.p,b:q,down:st.down});st.p=q}
+  if(st.down)S.lastTouch=performance.now()});
+const up=e=>{const st=ptrs.get(e.pointerId);if(st){if(e.pointerType==='mouse'&&e.type==='pointerup')st.down=false;else ptrs.delete(e.pointerId)}};
+['pointerup','pointercancel'].forEach(n=>poster.addEventListener(n,up));
+poster.addEventListener('pointerleave',e=>{if(!ptrs.get(e.pointerId)?.down)ptrs.delete(e.pointerId)});
+
+function applySegs(dt){
+  for(const s of segs){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],L=Math.hypot(dx,dy);
+    const k=s.down?1:.32;let fx=dx/dt*k,fy=dy/dt*k;const m=Math.hypot(fx,fy),cap=s.down?3.2:1.1;if(m>cap){fx*=cap/m;fy*=cap/m}
+    const squeeze=s.down&&S.tool==='squeeze';
+    run(PG.splatV,vel.w,{B:vel.r,a:s.a,b:s.b,f:squeeze?[fx*.25,fy*.25]:[fx,fy],r:s.down?.055:.04});vel.swap();
+    if(squeeze){const r=.03-Math.min(.012,L*.25);
+      stroke(paint,s.a,s.b,r,1.25,PIGS[S.handPig]);stroke(strokes,s.a,s.b,r,1.1,PIGS[S.handPig])}
+    else if(s.down){stroke(paint,s.a,s.b,.024,.55,PIGS[S.handPig],1)}}
+  segs=[]}
+
+/* slow idle wobble so the surface reads as wet */
+let nextWob=2;function wobble(T){if(RM||!S.ret||T<nextWob)return;nextWob=T+1.1+Math.random()*1.4;
+  const a=[.15+Math.random()*.7,.45+Math.random()*.4],an=Math.random()*6.28,b=[a[0]+Math.cos(an)*.03,a[1]+Math.sin(an)*.03];
+  run(PG.splatV,vel.w,{B:vel.r,a,b,f:[Math.cos(an)*.12,Math.sin(an)*.12],r:.09});vel.swap()}
+
+/* ---------- frame ---------- */
+const tx=[1/SR,1/SR],ptx=[1/PR,1/PR];let bgTime=0;
+function sim(dt,T,now){
+  applySegs(dt);wobble(T);
+  run(PG.advV,vel.w,{V:vel.r,dt,diss:Math.exp(-dt*3.2)});vel.swap();
+  run(PG.div,dvg,{V:vel.r,t:tx});
+  for(let i=0;i<JAC;i++){run(PG.jac,prs.w,{Pr:prs.r,D:dvg,t:tx});prs.swap()}
+  run(PG.grad,vel.w,{Pr:prs.r,V:vel.r,t:tx});vel.swap();
+
+  const idle=(now-S.lastTouch)/1000;let rel=0;
+  if(S.ret)rel=idle<1.3?0:Math.min(2.4,(idle-1.3)*1.5);
+  if(S.drip)rel=Math.max(rel,S.ret?.7:.25);
+  rel=Math.max(rel,S.pour);S.pour*=Math.exp(-dt*2.2);if(S.pour<.05)S.pour=0;
+  if(S.snap){rel=1e4;S.snap=false}
+  run(PG.paint,paint.w,{P:paint.r,V:vel.r,T:target,St:strokes.r,dt,ten:9,rel,drip:S.drip?.075:0,time:T,t:ptx});paint.swap();
+}
+function shade(T){
+  const a=1/(PR/2),b=1/(PR/4);
+  run(PG.blur0,hA,{B:paint.r,d:[a*1.3,0]});run(PG.blur,hB,{B:hA,d:[0,a*1.3]});
+  run(PG.blur,qA,{B:hB,d:[b*1.25,0]});run(PG.blur,qB,{B:qA,d:[0,b*1.25]});
+  run(PG.blur,qA,{B:qB,d:[b*1.9,0]});run(PG.blur,qB,{B:qA,d:[0,b*1.9]});
+  run(PG.bg,bgT,{V:vel.r,time:T});
+  run(PG.final,null,{P:paint.r,H1:hB,H2:qB,Bg:bgT,Ov:ovT,V:vel.r,t:ptx,time:T,hs:230});
+}
+let last=performance.now(),slow=0,frames=0,ready=false;
+function frame(now){
+  const raw=(now-last)/1000;last=now;const dt=Math.min(.033,Math.max(.008,raw));
+  if(!RM)bgTime+=dt;
+  if(S.dirty){S.dirty=false;buildTarget()}
+  sim(dt,bgTime,now);shade(bgTime);
+  frames++;if(raw>.04)slow++;
+  if(frames===120){if(slow>70&&renderScale===1){renderScale=.7;JAC=9;size()}frames=0;slow=0}
+  requestAnimationFrame(frame);
+}
+function size(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);
+  const s=Math.max(320,Math.min(1400,Math.round(r.width*d*renderScale)));if(canvas.width!==s){canvas.width=canvas.height=s;if(ready)shade(bgTime)}}
+new ResizeObserver(size).observe(poster);
+
+/* ---------- controls ---------- */
+const press=(wrap,btn)=>wrap.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===btn)));
+const txt=$('txt');
+async function loadFont(){try{await document.fonts.load(`80px "${FONTS[S.font][1]}"`,S.text||'가A')}catch(e){}refresh(5);drawOverlay()}
+let tmr;function setText(v){S.text=v;refresh(5);clearTimeout(tmr);tmr=setTimeout(loadFont,120);syncPresets()}
+txt.addEventListener('input',()=>setText(txt.value));
+function syncPresets(){$('presets').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===S.text)))}
+PRESETS.forEach((p,i)=>{const b=document.createElement('button');b.className='chip';b.id='pre'+i;b.dataset.v=p;b.textContent=p.replace('\n',' ');
+  b.onclick=()=>{txt.value=p;setText(p)};$('presets').append(b)});
+FONTS.forEach(([n,f],i)=>{const b=document.createElement('button');b.className='chip';b.id='font'+i;b.textContent=n;b.style.fontFamily=`"${f}",var(--f-ui)`;b.setAttribute('aria-pressed',String(i===0));
+  b.onclick=()=>{S.font=i;press($('fonts'),b);loadFont()};$('fonts').append(b)});
+$('tools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.tool=b.dataset.t;press($('tools'),b);poster.classList.toggle('moving',S.tool==='move')});
+function swatches(id,key,fn){PIGS.forEach((_,i)=>{const b=document.createElement('button');b.id=id+i;b.dataset.p=i;b.style.setProperty('--c',PIGCSS[i]);b.setAttribute('aria-label',PIGNAME[i]);b.title=PIGNAME[i];b.setAttribute('aria-pressed',String(S[key]===i));
+  b.onclick=()=>{S[key]=i;press($(id),b);fn&&fn()};$(id).append(b)})}
+swatches('swText','textPig',()=>refresh(5));swatches('swHand','handPig');
+const bind=(id,out,fn,fmt)=>{const el=$(id);const f=()=>{fn(+el.value);$(out).textContent=fmt(+el.value);refresh(6)};el.addEventListener('input',f);$(out).textContent=fmt(+el.value)};
+bind('size','oSize',v=>S.size=v/100,v=>v+'%');bind('tilt','oTilt',v=>S.tilt=v,v=>v+'°');bind('goo','oGoo',v=>S.goo=v/100,v=>v+'%');
+const tog=(id,key,fn)=>$(id).onclick=()=>{S[key]=!S[key];$(id).setAttribute('aria-pressed',String(S[key]));fn&&fn()};
+tog('o-ret','ret');tog('o-drip','drip');
+$('reset').onclick=()=>{clearF(strokes.r);clearF(strokes.w);clearF(vel.r);clearF(vel.w);S.ox=S.oy=0;S.dirty=true;S.snap=true;say('새 물감을 부었어요.')};
+const say=m=>{$('foot').textContent=m};
+
+/* ---------- save ---------- */
+(async()=>{const dl=window.claude?.use?await window.claude.use('downloads').catch(()=>null):{save:async({filename,data})=>{const a=document.createElement('a');a.href=URL.createObjectURL(data);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}};if(!dl)return;
+  const btn=$('save');btn.hidden=false;
+  btn.onclick=async()=>{const keep=canvas.width;canvas.width=canvas.height=2000;shade(bgTime);
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));canvas.width=canvas.height=keep;
+    if(!blob){say('이미지를 만들지 못했어요. 다시 눌러 주세요.');return}
+    try{await dl.save({filename:'minky-wet-paint.png',data:blob});say('포스터를 저장했어요.')}
+    catch(e){say(e&&e.code==='declined'?'저장을 취소했어요.':'지금은 저장할 수 없어요.')}}})();
+
+/* ---------- start ---------- */
+size();drawOverlay();S.snap=true;
+loadFont();
+Promise.all(['800 25px "Gothic A1"','300 27px "Gothic A1"','400 12px "Gothic A1"'].map(f=>document.fonts.load(f,'물감MINKY').catch(()=>0))).then(drawOverlay);
+syncPresets();
+/* a first scripted swipe shows the surface is wet */
+if(!RM)setTimeout(()=>{let i=0;const id=setInterval(()=>{const t=i/26,a=[.2+t*.6,.70+Math.sin(t*6.3)*.06],b=[.2+(t+.04)*.6,.70+Math.sin((t+.04)*6.3)*.06];segs.push({a,b,down:true});S.lastTouch=performance.now()-400;if(++i>26)clearInterval(id)},30)},900);
+ready=true;requestAnimationFrame(frame);
+})();
+</script>
